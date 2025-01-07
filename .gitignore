@@ -1,0 +1,8 @@
+data/*
+data_splits/*
+dataset/*
+models/*
+results/*
+results_unetplusplus/*
+runs/*
+.myvenv/
