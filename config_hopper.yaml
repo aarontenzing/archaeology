@@ -1,0 +1,6 @@
+work_dir: /apollo/avc/projects/archaeology
+resources:
+  resource_pool: hopper
+  slots: 1
+environment:
+  image: jefpl/determined:latest

@@ -3,6 +3,8 @@ data_splits/*
 dataset/*
 models/*
 results/*
-results_unetplusplus/*
-runs/*
 .myvenv/
+runs/*
+results/*
+results_segformer_mit_b2/*
+tiled_dataset/*

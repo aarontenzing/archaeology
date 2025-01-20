@@ -24,11 +24,10 @@ from torch.utils.tensorboard import SummaryWriter
 import time
 import numpy as np
 from tqdm import tqdm
-import argparse
 
 n_classes = 37 # including background
-IMAGE_PATH = 'dataset/images/'
-MASK_PATH = 'dataset/masks/'
+IMAGE_PATH = 'tiled_dataset/images/'
+MASK_PATH = 'tiled_dataset/masks/'
 
 def create_df():
     name = []
@@ -172,7 +171,7 @@ def fit(epochs, model, train_loader, val_loader, criterion, optimizer, scheduler
         # Save the best model based on validation loss
         if val_loss < min_loss:
             print(f'Saving current best model...')
-            torch.save(model.state_dict(), f'best_model_epoch_{epoch+1}.pth')
+            torch.save(model.state_dict(), f'best_model_epoch.pth')
             min_loss = val_loss
             patience_counter = 0
 
@@ -243,7 +242,7 @@ class ArchaeologyDataset(Dataset):
     def __init__(self, img_path, mask_path, data, mean, std, transform=None, patch=False):
         self.img_path = img_path
         self.mask_path = mask_path
-        self.data = data # lijst van image/mask identifiers (e.g., filenames without extensions)
+        self.data = data # lijst van image/mask ids (without extensions)
         self.mean = mean 
         self.std = std
         self.transform = transform
@@ -353,6 +352,8 @@ if __name__ == "__main__":
     X_train, X_test = train_test_split(df['id'].values, test_size=0.1, random_state=19) # split the data into train and test sets
     X_train, X_val = train_test_split(X_train, test_size=0.15, random_state=19) # validate on 15% of the training data
 
+    print(X_train)
+
     # Read splits from csv - if using (stratified random sampling) 
     # print('Reading data splits...')
     # df_train = pd.read_csv('data_splits/least_freq_label/train.csv')
@@ -374,27 +375,34 @@ if __name__ == "__main__":
     std=[0.229, 0.224, 0.225]
 
     # Augmentations
-    target_height = 224
-    target_width = 224
 
-    t_train = A.Compose([A.LongestMaxSize(max_size=max(target_height, target_width)),  # Resize longest side
-                        A.PadIfNeeded(min_height=target_height, min_width=target_width, border_mode=cv.BORDER_CONSTANT, value=0),
-                        A.HorizontalFlip(), A.VerticalFlip(), 
-                        A.GridDistortion(p=0.2), A.RandomBrightnessContrast((0,0.5),(0,0.5)),
-                        A.GaussNoise()])
-    
-    t_val = A.Compose([A.LongestMaxSize(max_size=max(target_height, target_width)), 
-                       A.PadIfNeeded(min_height=target_height, min_width=target_width, border_mode=cv.BORDER_CONSTANT, value=0)])
+    height, width = 512, 512   
 
-
-    # t_train = A.Compose([A.Resize(704, 1056, interpolation=cv.INTER_NEAREST), 
+    """ Resize and keep same ratio by padding. """
+    # t_train = A.Compose([A.LongestMaxSize(max_size=max(height, width)),  # Resize longest side
+    #                     A.PadIfNeeded(min_height=height, min_width=width, border_mode=cv.BORDER_CONSTANT, value=0),
     #                     A.HorizontalFlip(), A.VerticalFlip(), 
     #                     A.GridDistortion(p=0.2), A.RandomBrightnessContrast((0,0.5),(0,0.5)),
     #                     A.GaussNoise()])
+    
+    # t_val = A.Compose([A.LongestMaxSize(max_size=max(height, width)), 
+    #                    A.PadIfNeeded(min_height=height, min_width=width, border_mode=cv.BORDER_CONSTANT, value=0)])
 
-    # t_val = A.Compose([A.Resize(704, 1056, interpolation=cv.INTER_NEAREST), 
-    #                 A.HorizontalFlip(),
-    #                 A.GridDistortion(p=0.2)])
+
+    """ Resize to the appropriate size """
+    t_train = A.Compose([A.Resize(height, width, interpolation=cv.INTER_NEAREST), 
+                        A.HorizontalFlip(), A.VerticalFlip(), 
+                        A.GridDistortion(p=0.2), A.RandomBrightnessContrast((0,0.5),(0,0.5)),
+                        A.GaussNoise()])
+
+    """ Center Crop the image and pad if image is smaller. """
+    # t_train = A.Compose([A.PadIfNeeded(min_height=height, min_width=width, border_mode=cv.BORDER_CONSTANT, value=0),
+    #                      A.CenterCrop(height, width), 
+    #                      A.HorizontalFlip(), A.VerticalFlip(), 
+    #                      A.GridDistortion(p=0.2), A.RandomBrightnessContrast((0,0.5),(0,0.5)),
+    #                      A.GaussNoise()])
+    
+    t_val = A.Compose([A.Resize(height, width, interpolation=cv.INTER_NEAREST)])
 
     # Dataset
     patch = False
@@ -402,14 +410,24 @@ if __name__ == "__main__":
     val_set = ArchaeologyDataset(IMAGE_PATH, MASK_PATH, X_val, mean, std, transform=t_val, patch=patch)
 
     # Dataloader
-    batch_size = 8
+    batch_size = 32
 
     # Create the dataloaders
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=True)      
 
-    # Model
-    model = sm.Unet('resnet34', encoder_weights='imagenet', classes=37, activation=None)
+    # Model architectures
+
+    # Unet
+    # print("Unet")
+    # model = sm.Unet('resnet34', encoder_weights='imagenet', classes=37, activation=None)
+
+    # print("Unet++")
+    # model = sm.UnetPlusPlus('resnet18', encoder_weights='imagenet', classes=37, activation=None)
+
+    # Segformer
+    print("Segformer")
+    model = sm.Segformer('mit_b2', encoder_weights='imagenet', classes=37, activation=None)
 
     # load checkpoint
     # model.load_state_dict(torch.load('unetplusplus_epoch_106.pth'))
@@ -417,21 +435,26 @@ if __name__ == "__main__":
     # Hyperparameters
     max_lr = 1e-3
     weight_decay = 1e-4
-    epochs = 200
-    log_dir = "runs/224x224/rescale_padding"   
+    epochs = 1000
+    log_dir = "runs/512x512/segformer_mit_b2_tiles"   
    
     # Loss function and optimizer
+
     weights = compute_class_weights(MASK_PATH, n_classes)
+    print(weights)
 
     print("Cross Entropy Loss")
-    ce_criterion = nn.CrossEntropyLoss().to(device)
-    #dice_criterion = DiceLoss().to(device)
+    ce_criterion = nn.CrossEntropyLoss(weight=weights).to(device)
 
-    #criterion = CombinedLoss(dice_criterion, ce_criterion, dice_weight=0.4)
+    # print("Dice Loss")
+    # criterion_dice = smp.losses.DiceLoss(mode='multiclass').to(device)
+
+    #criterion = CombinedLoss(ce_dice, ce_criterion, dice_weight=0.4)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=max_lr, weight_decay=weight_decay)
+
     scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr, epochs=epochs, steps_per_epoch=len(train_loader))
 
     # Training 
     print('Training the model...')
-    fit(epochs, model, train_loader, val_loader, ce_criterion, optimizer, scheduler, patch=patch, log_dir=log_dir)
+    # fit(epochs, model, train_loader, val_loader, ce_criterion, optimizer, scheduler, patch=patch, log_dir=log_dir, patience=50)
