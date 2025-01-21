@@ -27,7 +27,7 @@ from tqdm import tqdm
 
 n_classes = 37 # including background
 IMAGE_PATH = 'tiled_dataset/images/'
-MASK_PATH = 'tiled_dataset/masks/'
+MASK_PATH = 'tiled_dataset/masks/'   
 
 def create_df():
     name = []
@@ -345,14 +345,13 @@ def compute_class_weights(mask_path, n_classes):
 
 if __name__ == "__main__":
     # Load the data and split it into train, validation, and test sets
-    df = create_df()
-    print('Total Images: ', len(df))
-    print(df.head())
+    # df = create_df()
+    # print('Total Images: ', len(df))
+    # print(df.head())
 
-    X_train, X_test = train_test_split(df['id'].values, test_size=0.1, random_state=19) # split the data into train and test sets
-    X_train, X_val = train_test_split(X_train, test_size=0.15, random_state=19) # validate on 15% of the training data
+    # X_train, X_test = train_test_split(df['id'].values, test_size=0.1, random_state=19) # split the data into train and test sets
+    # X_train, X_val = train_test_split(X_train, test_size=0.15, random_state=19) # validate on 15% of the training data
 
-    print(X_train)
 
     # Read splits from csv - if using (stratified random sampling) 
     # print('Reading data splits...')
@@ -364,9 +363,18 @@ if __name__ == "__main__":
     # X_test = df_test['id'].values.astype(str)
 
     # Print image ids in the test dataset
+    # print('Train Size   : ', len(X_train))
+    # print('Val Size     : ', len(X_val))
+    # print('Test Size    : ', len(X_test))
+
+    df_tiled = create_df()
+    print('Total Images: ', len(df_tiled))
+    print(df_tiled.head())
+
+    X_train, X_val = train_test_split(df_tiled['id'].values, test_size=0.14, random_state=19)
+
     print('Train Size   : ', len(X_train))
     print('Val Size     : ', len(X_val))
-    print('Test Size    : ', len(X_test))
 
     # Train is 76 % of the data, Test is 10 % of the data, Val is 14 % of the data
 
@@ -390,7 +398,7 @@ if __name__ == "__main__":
 
 
     """ Resize to the appropriate size """
-    t_train = A.Compose([A.Resize(height, width, interpolation=cv.INTER_NEAREST), 
+    t_train = A.Compose([# A.Resize(height, width, interpolation=cv.INTER_NEAREST), 
                         A.HorizontalFlip(), A.VerticalFlip(), 
                         A.GridDistortion(p=0.2), A.RandomBrightnessContrast((0,0.5),(0,0.5)),
                         A.GaussNoise()])
@@ -410,7 +418,7 @@ if __name__ == "__main__":
     val_set = ArchaeologyDataset(IMAGE_PATH, MASK_PATH, X_val, mean, std, transform=t_val, patch=patch)
 
     # Dataloader
-    batch_size = 32
+    batch_size = 16
 
     # Create the dataloaders
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
@@ -430,7 +438,7 @@ if __name__ == "__main__":
     model = sm.Segformer('mit_b2', encoder_weights='imagenet', classes=37, activation=None)
 
     # load checkpoint
-    # model.load_state_dict(torch.load('unetplusplus_epoch_106.pth'))
+    model.load_state_dict(torch.load('runs/512x512/segformer_mit_b2/best_model_epoch.pth'))
 
     # Hyperparameters
     max_lr = 1e-3
@@ -439,16 +447,14 @@ if __name__ == "__main__":
     log_dir = "runs/512x512/segformer_mit_b2_tiles"   
    
     # Loss function and optimizer
-
-    weights = compute_class_weights(MASK_PATH, n_classes)
-    print(weights)
+    # weights = compute_class_weights(MASK_PATH, n_classes)
+    # print(weights)
 
     print("Cross Entropy Loss")
-    ce_criterion = nn.CrossEntropyLoss(weight=weights).to(device)
+    ce_criterion = nn.CrossEntropyLoss().to(device)
 
     # print("Dice Loss")
     # criterion_dice = smp.losses.DiceLoss(mode='multiclass').to(device)
-
     #criterion = CombinedLoss(ce_dice, ce_criterion, dice_weight=0.4)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=max_lr, weight_decay=weight_decay)
@@ -457,4 +463,4 @@ if __name__ == "__main__":
 
     # Training 
     print('Training the model...')
-    # fit(epochs, model, train_loader, val_loader, ce_criterion, optimizer, scheduler, patch=patch, log_dir=log_dir, patience=50)
+    fit(epochs, model, train_loader, val_loader, ce_criterion, optimizer, scheduler, patch=patch, log_dir=log_dir, patience=50)
