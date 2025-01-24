@@ -26,8 +26,8 @@ import numpy as np
 from tqdm import tqdm
 
 n_classes = 37 # including background
-IMAGE_PATH = 'tiled_dataset/images/'
-MASK_PATH = 'tiled_dataset/masks/'   
+IMAGE_PATH = 'dataset/images/'
+MASK_PATH = 'dataset/masks/'   
 
 def create_df():
     name = []
@@ -75,17 +75,13 @@ def mIoU(pred_mask, mask, smooth=1e-10, n_classes=37):
         return np.nanmean(iou_per_class)
 
 # Training function for one epoch
-def train_one_epoch(model, train_loader, criterion, optimizer, scheduler, device, patch=False):
+def train_one_epoch(model, train_loader, criterion, optimizer, scheduler, device):
     running_loss = 0.0
     running_iou = 0.0
     running_acc = 0.0
     model.train()  # Set model to training mode
 
     for img, mask in tqdm(train_loader, desc='Training', colour='green'):
-        if patch:
-            bs, n_tiles, c, h, w = img.size()
-            img = img.view(-1,c, h, w)
-            mask = mask.view(-1, h, w)
 
         # Move images and masks to the correct device
         img, mask = img.to(device), mask.to(device)
@@ -111,7 +107,7 @@ def train_one_epoch(model, train_loader, criterion, optimizer, scheduler, device
     return running_loss / len(train_loader), running_iou / len(train_loader), running_acc / len(train_loader)
 
 # Validation function for one epoch
-def validate_one_epoch(model, val_loader, criterion, device, patch=False):
+def validate_one_epoch(model, val_loader, criterion, device):
     model.eval()  # Set the model to evaluation mode
     running_loss = 0.0
     running_iou = 0.0
@@ -119,11 +115,6 @@ def validate_one_epoch(model, val_loader, criterion, device, patch=False):
 
     with torch.no_grad():  # No need to compute gradients during validation
         for img, mask in tqdm(val_loader, desc='Validation', colour='red'):
-            if patch:
-                bs, n_tiles, c, h, w = img.size()
-                img = img.view(-1,c, h, w)
-                mask = mask.view(-1, h, w)
-                
             # Move images and masks to the correct device
             img, mask = img.to(device), mask.to(device)
 
@@ -140,7 +131,7 @@ def validate_one_epoch(model, val_loader, criterion, device, patch=False):
     return running_loss / len(val_loader), running_iou / len(val_loader), running_acc / len(val_loader)
 
 # Function to train the model
-def fit(epochs, model, train_loader, val_loader, criterion, optimizer, scheduler, patch=False, log_dir="runs", patience=20):
+def fit(epochs, model, train_loader, val_loader, criterion, optimizer, scheduler, log_dir="runs", patience=20):
     torch.cuda.empty_cache()  # Clear cache to free up GPU memory
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.to(device)  # Move the model to the selected device
@@ -153,7 +144,7 @@ def fit(epochs, model, train_loader, val_loader, criterion, optimizer, scheduler
         print(f'Epoch {epoch+1}/{epochs}')
 
         # Training phase
-        train_loss, train_iou, train_acc = train_one_epoch(model, train_loader, criterion, optimizer, scheduler, device, patch=patch)
+        train_loss, train_iou, train_acc = train_one_epoch(model, train_loader, criterion, optimizer, scheduler, device)
 
         # Log training metrics
         writer.add_scalar('Loss/Train', train_loss, epoch)
@@ -161,7 +152,7 @@ def fit(epochs, model, train_loader, val_loader, criterion, optimizer, scheduler
         writer.add_scalar('Accuracy/Train', train_acc, epoch)
 
         # Validation phase
-        val_loss, val_iou, val_acc = validate_one_epoch(model, val_loader, criterion, device, patch=patch)
+        val_loss, val_iou, val_acc = validate_one_epoch(model, val_loader, criterion, device)
 
         # Log validation metrics
         writer.add_scalar('Loss/Validation', val_loss, epoch)
@@ -239,14 +230,13 @@ def pixel_acc(model, test_set):
 
 
 class ArchaeologyDataset(Dataset):
-    def __init__(self, img_path, mask_path, data, mean, std, transform=None, patch=False):
+    def __init__(self, img_path, mask_path, data, mean, std, transform=None):
         self.img_path = img_path
         self.mask_path = mask_path
         self.data = data # lijst van image/mask ids (without extensions)
         self.mean = mean 
         self.std = std
         self.transform = transform
-        self.patch = patch # True als je met patches werkt, kleinere patches van de afbeeldingen maken
     
     def __len__(self):
         return len(self.data)
@@ -265,22 +255,8 @@ class ArchaeologyDataset(Dataset):
         t = T.Compose([T.ToTensor(), T.Normalize(mean=self.mean, std=self.std)])
         img = t(img)
         mask = torch.from_numpy(mask).long() # numpy array naar tensor
-
-        if self.patch:
-            img, mask = self.tiles(img, mask) 
             
         return img, mask
-
-    def tiles(self, img, mask):
-        # Unfold the image and mask into patches
-        img_patches = img.unfold(1, 512, 512).unfold(2, 768, 768) 
-        img_patches  = img_patches.contiguous().view(3,-1, 512, 768) 
-        img_patches = img_patches.permute(1,0,2,3)
-        
-        mask_patches = mask.unfold(0, 512, 512).unfold(1, 768, 768)
-        mask_patches = mask_patches.contiguous().view(-1, 512, 768)
-        
-        return img_patches, mask_patches
 
 
 class DiceLoss(nn.Module):
@@ -318,6 +294,7 @@ class DiceLoss(nn.Module):
 
 
 class CombinedLoss(nn.Module):
+    """ Combined loss function that combines Dice loss with Cross Entropy loss """
     def __init__(self, dice_loss, ce_loss, dice_weight=0.5):
         super(CombinedLoss, self).__init__()
         self.dice_loss = dice_loss
@@ -344,13 +321,18 @@ def compute_class_weights(mask_path, n_classes):
 
 
 if __name__ == "__main__":
-    # Load the data and split it into train, validation, and test sets
-    # df = create_df()
-    # print('Total Images: ', len(df))
-    # print(df.head())
 
-    # X_train, X_test = train_test_split(df['id'].values, test_size=0.1, random_state=19) # split the data into train and test sets
-    # X_train, X_val = train_test_split(X_train, test_size=0.15, random_state=19) # validate on 15% of the training data
+    ##################################
+    # DATA PREPROCESSING
+    #################################
+    df = create_df()
+    print('Total Images: ', len(df))
+    print(df.head())
+
+    X_train, X_test = train_test_split(df['id'].values, test_size=0.1, random_state=19) # split the data into train and test sets
+    X_train, X_val = train_test_split(X_train, test_size=0.15, random_state=19) # validate on 15% of the training data
+
+    # Train is 76 % of the data, Test is 10 % of the data, Val is 14 % of the data
 
 
     # Read splits from csv - if using (stratified random sampling) 
@@ -367,21 +349,6 @@ if __name__ == "__main__":
     # print('Val Size     : ', len(X_val))
     # print('Test Size    : ', len(X_test))
 
-    df_tiled = create_df()
-    print('Total Images: ', len(df_tiled))
-    print(df_tiled.head())
-
-    X_train, X_val = train_test_split(df_tiled['id'].values, test_size=0.14, random_state=19)
-
-    print('Train Size   : ', len(X_train))
-    print('Val Size     : ', len(X_val))
-
-    # Train is 76 % of the data, Test is 10 % of the data, Val is 14 % of the data
-
-    # Mean and std
-    mean=[0.485, 0.456, 0.406]
-    std=[0.229, 0.224, 0.225]
-
     # Augmentations
 
     height, width = 512, 512   
@@ -397,8 +364,8 @@ if __name__ == "__main__":
     #                    A.PadIfNeeded(min_height=height, min_width=width, border_mode=cv.BORDER_CONSTANT, value=0)])
 
 
-    """ Resize to the appropriate size """
-    t_train = A.Compose([# A.Resize(height, width, interpolation=cv.INTER_NEAREST), 
+    """ Resize to the appropriate size. """
+    t_train = A.Compose([A.Resize(height, width, interpolation=cv.INTER_NEAREST), 
                         A.HorizontalFlip(), A.VerticalFlip(), 
                         A.GridDistortion(p=0.2), A.RandomBrightnessContrast((0,0.5),(0,0.5)),
                         A.GaussNoise()])
@@ -412,19 +379,24 @@ if __name__ == "__main__":
     
     t_val = A.Compose([A.Resize(height, width, interpolation=cv.INTER_NEAREST)])
 
+    # Mean and Standard Deviation
+    mean=[0.485, 0.456, 0.406]
+    std=[0.229, 0.224, 0.225]
+
     # Dataset
-    patch = False
-    train_set = ArchaeologyDataset(IMAGE_PATH, MASK_PATH, X_train, mean, std, transform=t_train, patch=patch)
-    val_set = ArchaeologyDataset(IMAGE_PATH, MASK_PATH, X_val, mean, std, transform=t_val, patch=patch)
+    train_set = ArchaeologyDataset(IMAGE_PATH, MASK_PATH, X_train, mean, std, transform=t_train)
+    val_set = ArchaeologyDataset(IMAGE_PATH, MASK_PATH, X_val, mean, std, transform=t_val)
 
     # Dataloader
-    batch_size = 16
+    batch_size = 32
 
     # Create the dataloaders
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=True)      
 
-    # Model architectures
+    ##################################
+    # MODEL ARCHITECTURE AND TRAINING
+    #################################
 
     # Unet
     # print("Unet")
@@ -435,32 +407,33 @@ if __name__ == "__main__":
 
     # Segformer
     print("Segformer")
-    model = sm.Segformer('mit_b2', encoder_weights='imagenet', classes=37, activation=None)
+    model = sm.Segformer('mit_b5', encoder_weights='imagenet', classes=37, activation=None)
 
     # load checkpoint
-    model.load_state_dict(torch.load('runs/512x512/segformer_mit_b2/best_model_epoch.pth'))
+    # model.load_state_dict(torch.load('runs/512x512/segformer_mit_b5/best_model_epoch.pth'))
 
     # Hyperparameters
     max_lr = 1e-3
     weight_decay = 1e-4
     epochs = 1000
-    log_dir = "runs/512x512/segformer_mit_b2_tiles"   
+    log_dir = "runs/512x512/segformer_mit_b5"   
    
     # Loss function and optimizer
     # weights = compute_class_weights(MASK_PATH, n_classes)
-    # print(weights)
 
     print("Cross Entropy Loss")
     ce_criterion = nn.CrossEntropyLoss().to(device)
 
     # print("Dice Loss")
     # criterion_dice = smp.losses.DiceLoss(mode='multiclass').to(device)
-    #criterion = CombinedLoss(ce_dice, ce_criterion, dice_weight=0.4)
+    
+    # print("Combined Loss")
+    # criterion = CombinedLoss(ce_dice, ce_criterion, dice_weight=0.4)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=max_lr, weight_decay=weight_decay)
 
     scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr, epochs=epochs, steps_per_epoch=len(train_loader))
 
-    # Training 
+    # Train the model
     print('Training the model...')
-    fit(epochs, model, train_loader, val_loader, ce_criterion, optimizer, scheduler, patch=patch, log_dir=log_dir, patience=50)
+    fit(epochs, model, train_loader, val_loader, ce_criterion, optimizer, scheduler, log_dir=log_dir, patience=50)
