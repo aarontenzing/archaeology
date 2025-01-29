@@ -332,8 +332,10 @@ if __name__ == "__main__":
     X_train, X_test = train_test_split(df['id'].values, test_size=0.1, random_state=19) # split the data into train and test sets
     X_train, X_val = train_test_split(X_train, test_size=0.15, random_state=19) # validate on 15% of the training data
 
-    # Train is 76 % of the data, Test is 10 % of the data, Val is 14 % of the data
+    print(X_test)
+    exit()
 
+    # Train is 76 % of the data, Test is 10 % of the data, Val is 14 % of the data
 
     # Read splits from csv - if using (stratified random sampling) 
     # print('Reading data splits...')
@@ -407,7 +409,7 @@ if __name__ == "__main__":
 
     # Segformer
     print("Segformer")
-    model = sm.Segformer('mit_b5', encoder_weights='imagenet', classes=37, activation=None)
+    model = sm.Segformer('mit_b2', encoder_weights='imagenet', classes=37, activation=None)
 
     # load checkpoint
     # model.load_state_dict(torch.load('runs/512x512/segformer_mit_b5/best_model_epoch.pth'))
@@ -419,7 +421,7 @@ if __name__ == "__main__":
     log_dir = "runs/512x512/segformer_mit_b5"   
    
     # Loss function and optimizer
-    # weights = compute_class_weights(MASK_PATH, n_classes)
+    weights = compute_class_weights(MASK_PATH, n_classes)
 
     print("Cross Entropy Loss")
     ce_criterion = nn.CrossEntropyLoss().to(device)

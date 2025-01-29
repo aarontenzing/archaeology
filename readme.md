@@ -104,3 +104,12 @@ Future work involves linking these embeddings to the [Nodegoat database](https:/
 The distances between embedding vectors may reveal additional information, such as:
 - Geographic location.
 - Possible time periods.
+
+### 4. Inference script (inference.py)
+
+- You can run this script to visualize the test dataset results. 
+- Just type a number between 0-49 to select an image you want to see the prediction of.  
+
+---
+Code inspired by [kaggle](https://www.kaggle.com/code/ligtfeather/semantic-segmentation-is-easy-with-pytorch/notebook#Training).
+Models from [Github](https://github.com/qubvel-org/segmentation_models.pytorch).
