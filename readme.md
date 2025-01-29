@@ -113,3 +113,5 @@ The distances between embedding vectors may reveal additional information, such 
 ---
 Code inspired by [kaggle](https://www.kaggle.com/code/ligtfeather/semantic-segmentation-is-easy-with-pytorch/notebook#Training).
 Models from [Github](https://github.com/qubvel-org/segmentation_models.pytorch).
+
+If you have any questions: aarontenzing at gmail dot com :)
