@@ -48,7 +48,7 @@ embeddings = np.vstack(embeddings)  # Convert into 2D NumPy array
 
 class_names = [label_to_class[label] for label in labels]
 
-def get_mask(image, label, model, target_size=(512, 512), mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
+def get_prediction(image, label, model, target_size=(512, 512), mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
     """ Returns the predictions for a given image path """
 
     image = cv.resize(image, target_size)
@@ -60,26 +60,27 @@ def get_mask(image, label, model, target_size=(512, 512), mean=[0.485, 0.456, 0.
         output = model(image)
 
     output = torch.argmax(F.softmax(output, dim=1), dim=1) # softmax: om logits --> probabilities --> klasse index
-    mask = (output == label)
-    mask = mask.squeeze(0).numpy()
 
-    return mask
+    return output
 
 # Segformer
 model = smp.Segformer('mit_b2', encoder_weights='imagenet', classes=37, activation=None)
 model.load_state_dict(torch.load('runs/512x512/segformer_mit_b2/best_model_epoch.pth', map_location=device))
 
 # Torch tensors of each image
-height, width = 512, 512
+height, width = 224, 224
 img_data = []
 for idx in tqdm(range(len(image_names)),colour='green'):
     img_path = "dataset/images/" + str(image_names[idx]) + ".jpg"
     image = cv.imread(img_path)
     image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
 
-    mask = get_mask(image, labels[idx], model, target_size=(512, 512)) # size has to be 512x512 because model was trained on this
-    # mask = cv.resize(mask, (height, width), interpolation=cv.INTER_NEAREST) # you can chose
-
+    output = get_prediction(image, labels[idx], model, target_size=(512, 512)) # size has to be 512x512 because model was trained on this
+    output = output.squeeze(0).numpy()
+    output = cv.resize(output, (height, width), interpolation=cv.INTER_NEAREST) # you can chose
+    
+    mask = (output == label)
+    
     image = cv.cvtColor(image, cv.COLOR_BGR2RGBA)
     image = cv.resize(image, (height, width))
     
