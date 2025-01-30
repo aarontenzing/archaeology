@@ -66,7 +66,7 @@ The dataset distribution was analyzed by examining the number of pixels per patt
 <img src="Pixel distribution of all classes (not resized to a single size).png"  height="500">
 <img src="Pixel distribution of all classes after resizing (224x224).png" height="500">
 
-### 2. Semantic Segmentation evaluation (evaluate.ipynb)
+### 2. Semantic Segmentation evaluation (`evaluate.ipynb`)
 
 Evaluation was conducted using a custom evaluation script to visualize results and calculate Intersection over Union (IoU).
 - **Metric used**: Jaccard Score (2D-IoU)
@@ -82,7 +82,7 @@ You can adjust the evaluate.ipynb notebook to:
 
 The results from all experiments (different architectures and input resolutions) are summarized in the [Excel sheet](resultaten_semantic_segmenation.xlsx).
 
-### 3. Embedding space (embedding_space.ipynb)
+### 3. Embedding space (`embedding_space.ipynb`)
 
 The best-performing model was the [Segformer (mit_b2) trained at 512 × 512 resolution](runs/512x512/segformer_mit_b2/best_model_epoch.pth). This model's feature extractor (encoder) was used to extract embedding vectors, containing important feature information, for every pixel in an image.
 
@@ -96,6 +96,7 @@ The best-performing model was the [Segformer (mit_b2) trained at 512 × 512 reso
 - **Clusters**: Clear clusters appear, showing how well the model differentiates between decorations within the same class.
 We can then reduce these vectors to less dimensions, ideally 2 or 3 so we are able to visualize these. 
 
+We plot the embedding vectors with their corresponding decoration extracted from the images they belong to. 
 An interactive plot allows hovering over points to see the image corresponding to the embedding vector.
 Future work involves linking these embeddings to the [Nodegoat database](https://nodegoat.net/).
 
@@ -105,13 +106,17 @@ The distances between embedding vectors may reveal additional information, such 
 - Geographic location.
 - Possible time periods.
 
-### 4. Inference script (inference.py)
+### 4. Inference script (`inference.py`)
 
 - You can run this script to visualize the test dataset results. 
-- Just type a number between 0-49 to select an image you want to see the prediction of.  
+- Just type a number between 0-49 to select an image you want to see the prediction of. 
 
----
-Code inspired by [kaggle](https://www.kaggle.com/code/ligtfeather/semantic-segmentation-is-easy-with-pytorch/notebook#Training).
-Models from [Github](https://github.com/qubvel-org/segmentation_models.pytorch).
+### 5. Tensorboard embedding spcae (`tensorboard_embeddings.py`)
 
-If you have any questions: aarontenzing at gmail dot com :)
+ToDo
+
+## Useful links
+- Code inspired by [kaggle](https://www.kaggle.com/code/ligtfeather/semantic-segmentation-is-easy-with-pytorch/notebook#Training).
+- Models from [Github](https://github.com/qubvel-org/segmentation_models.pytorch).
+
+If you have any questions: aarontenzing-at-gmail-dot-com :)
