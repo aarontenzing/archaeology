@@ -1,5 +1,13 @@
 # Project Documentation
 
+Setup:
+```bash
+Python Version 3.12.3
+$ python3 -m venv .myvenv
+$ source .myvenv/bin/activate
+$ pip install -r requirements
+```
+
 ## Overview
 
 The data for this project was downloaded from Supervisely and is organized based on the locations where the images were taken. Initially, the images were downloaded using the Supervisely format, where each image includes a JSON file containing a bitmap. This format was difficult to work with.
@@ -7,7 +15,7 @@ The data for this project was downloaded from Supervisely and is organized based
 To simplify this, I used the [Export as masks app](https://app.supervisely.com/ecosystem/apps/export-as-masks?id=78). This app  outputs a directory with the original images and another directory containing the mask files. The pixel values in these masks correspond to the classes defined in the obj_class_to_machine_color.json file.
 
 Since the data was initially separated into directories based on location, I used the `copy_files.py` script to combine all the images into a single directory called `dataset/`, which includes:
-- `images/` : Contains all the images
+- `images/` : Contains all the images.
 - `masks/` : Contains all the corresponding masks.
 
 ##  Training
@@ -124,5 +132,6 @@ This script allows you to load embeddings and associated metadata into TensorBoa
 ## Useful links
 - Code inspired by [kaggle](https://www.kaggle.com/code/ligtfeather/semantic-segmentation-is-easy-with-pytorch/notebook#Training).
 - Models from [Github](https://github.com/qubvel-org/segmentation_models.pytorch).
+- t-SNE: https://distill.pub/2016/misread-tsne/
 
 If you have any questions: aarontenzing-at-gmail-dot-com :)

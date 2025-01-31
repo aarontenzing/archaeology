@@ -13,7 +13,7 @@ from tqdm import tqdm
 all_embedding_vectors = defaultdict(list) # Dictionary to store embeddings for each class
 
 # Read embeddings from pkl file
-with open('embeddings_pkl/global_label_embeddings_segformer_last_layer_th_0.05.pkl', 'rb') as f:
+with open('embeddings_pkl/global_label_embeddings_segformer_all_feature_maps_th_0.075.pkl', 'rb') as f:
     all_embedding_vectors = pickle.load(f)
 
 # List of important classes and their corresponding labels
@@ -49,9 +49,8 @@ class_names = [label_to_class[label] for label in labels]
 
 # FUNCTIONS
 
-def get_prediction(image, label, model, target_size=(512, 512), mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
+def get_prediction(image, model, target_size=(512, 512), mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
     """ Returns the predictions for a given image path """
-
     image = cv.resize(image, target_size)
     t = T.Compose([T.ToTensor(), T.Normalize(mean=mean, std=std)])
     image = t(image)
@@ -95,7 +94,7 @@ def images_to_sprite(data):
     data = (data * 255).astype(np.uint8)
     return data
 
-create_sprite = False
+create_sprite = True
 
 if create_sprite:
   # Load the model - needed to get the mask
@@ -111,11 +110,11 @@ if create_sprite:
       image = cv.imread(img_path)
       image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
 
-      output = get_prediction(image, labels[idx], model, target_size=(512, 512)) # size has to be 512x512 because model was trained on this
+      output = get_prediction(image, model, target_size=(512, 512)) # size has to be 512x512 because model was trained on this
       output = output.squeeze(0).numpy()
       output = cv.resize(output, (height, width), interpolation=cv.INTER_NEAREST) # you can chose
       
-      mask = (output == label)
+      mask = (output == labels[idx])
       
       image = cv.cvtColor(image, cv.COLOR_BGR2RGBA)
       image = cv.resize(image, (height, width))
@@ -146,14 +145,14 @@ embeddings {
 }
 """
 
-# Create a metadata 
-metadata = list(zip(labels, class_names, image_names))
+# # Create a metadata 
+# metadata = list(zip(labels, class_names, image_names))
 
-# Create a SummaryWriter instance
-writer = SummaryWriter('runs/segmentation_embeddings_th_0.05')
-writer.add_embedding(torch.from_numpy(embeddings).float(), metadata=metadata, metadata_header=["Class Label", "Class Names", "Image ID"],  global_step=0)
+# # Create a SummaryWriter instance
+# writer = SummaryWriter('runs/segmentation_embeddings_th_0.05')
+# writer.add_embedding(torch.from_numpy(embeddings).float(), metadata=metadata, metadata_header=["Class Label", "Class Names", "Image ID"],  global_step=0)
 
-writer.close()
+# writer.close()
 
 # Print instructions
 print("Run the following command in your terminal to start TensorBoard:")
