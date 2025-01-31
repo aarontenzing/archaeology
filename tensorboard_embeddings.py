@@ -13,10 +13,9 @@ from tqdm import tqdm
 all_embedding_vectors = defaultdict(list) # Dictionary to store embeddings for each class
 
 # Read embeddings from pkl file
-with open('embeddings_pkl/global_label_embeddings_segformer_last_layer_th_0.075.pkl', 'rb') as f:
+with open('embeddings_pkl/global_label_embeddings_segformer_last_layer_th_0.05.pkl', 'rb') as f:
     all_embedding_vectors = pickle.load(f)
 
-# Process embeddings
 # List of important classes and their corresponding labels
 important_classes = [
     'Ionic kyma decoration', 
@@ -30,9 +29,9 @@ important_classes = [
 
 labels_import_classes = [6, 1, 15, 12, 2, 30, 29]
 
-# Dictionary label and class name
 label_to_class = dict(zip(labels_import_classes, important_classes))
 
+# Process the embeddings
 # Combine embeddings into a single array and track labels
 embeddings = []
 labels = []
@@ -47,6 +46,8 @@ for label, arrays in all_embedding_vectors.items():
 embeddings = np.vstack(embeddings)  # Convert into 2D NumPy array
 
 class_names = [label_to_class[label] for label in labels]
+
+# FUNCTIONS
 
 def get_prediction(image, label, model, target_size=(512, 512), mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
     """ Returns the predictions for a given image path """
@@ -63,50 +64,6 @@ def get_prediction(image, label, model, target_size=(512, 512), mean=[0.485, 0.4
 
     return output
 
-# Segformer
-model = smp.Segformer('mit_b2', encoder_weights='imagenet', classes=37, activation=None)
-model.load_state_dict(torch.load('runs/512x512/segformer_mit_b2/best_model_epoch.pth', map_location=device))
-
-# Torch tensors of each image
-height, width = 224, 224
-img_data = []
-for idx in tqdm(range(len(image_names)),colour='green'):
-    img_path = "dataset/images/" + str(image_names[idx]) + ".jpg"
-    image = cv.imread(img_path)
-    image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
-
-    output = get_prediction(image, labels[idx], model, target_size=(512, 512)) # size has to be 512x512 because model was trained on this
-    output = output.squeeze(0).numpy()
-    output = cv.resize(output, (height, width), interpolation=cv.INTER_NEAREST) # you can chose
-    
-    mask = (output == label)
-    
-    image = cv.cvtColor(image, cv.COLOR_BGR2RGBA)
-    image = cv.resize(image, (height, width))
-    
-    # Only keep mask, make alpha channel 0 for non-masked pixels
-    image[~mask] = [0, 0, 0, 0]
-
-    img_data.append(image)
-
-img_data = np.array(img_data)  
-
-# Generate SPRITE IMAGE
-# Copy this to diretory: "runs/segmentation_embeddings/00000/default/"
-"""
-When generating own sprite, fix config settings:
-embeddings {
-  tensor_name: "default:00000"
-  metadata_path: "00000/default/metadata.tsv"
-  sprite {
-    image_path: "00000/default/sprite.png"
-    single_image_dim: 224
-    single_image_dim: 224
-  }
-  tensor_path: "00000/default/tensors.tsv"
-}
-
-"""
 def images_to_sprite(data):
     """Creates the sprite image along with any necessary padding
 
@@ -138,18 +95,65 @@ def images_to_sprite(data):
     data = (data * 255).astype(np.uint8)
     return data
 
-sprite = images_to_sprite(img_data)
-cv.imwrite(('runs/segmentation_embeddings/00000/default/sprite.png'), sprite)
+create_sprite = False
 
+if create_sprite:
+  # Load the model - needed to get the mask
+  # Segformer
+  model = smp.Segformer('mit_b2', encoder_weights='imagenet', classes=37, activation=None)
+  model.load_state_dict(torch.load('runs/512x512/segformer_mit_b2/best_model_epoch.pth', map_location=device))
+
+  # Torch tensors of each image
+  height, width = 224, 224
+  img_data = []
+  for idx in tqdm(range(len(image_names)),colour='green'):
+      img_path = "dataset/images/" + str(image_names[idx]) + ".jpg"
+      image = cv.imread(img_path)
+      image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
+
+      output = get_prediction(image, labels[idx], model, target_size=(512, 512)) # size has to be 512x512 because model was trained on this
+      output = output.squeeze(0).numpy()
+      output = cv.resize(output, (height, width), interpolation=cv.INTER_NEAREST) # you can chose
+      
+      mask = (output == label)
+      
+      image = cv.cvtColor(image, cv.COLOR_BGR2RGBA)
+      image = cv.resize(image, (height, width))
+      
+      # Only keep mask, make alpha channel 0 for non-masked pixels
+      image[~mask] = [0, 0, 0, 0]
+
+      img_data.append(image)
+
+  img_data = np.array(img_data) 
+
+  sprite = images_to_sprite(img_data)
+  cv.imwrite(('sprite_test.png'), sprite) 
+
+# Generate SPRITE IMAGE
+# Copy the sprite image to "runs/segmentation_embeddings/00000/default/" directory.
+"""
+When generating own sprite, fix config settings:
+embeddings {
+  tensor_name: "default:00000"
+  metadata_path: "00000/default/metadata.tsv"
+  sprite {
+    image_path: "00000/default/sprite.png"
+    single_image_dim: 224
+    single_image_dim: 224
+  }
+  tensor_path: "00000/default/tensors.tsv"
+}
+"""
 
 # Create a metadata 
-# metadata = list(zip(labels, class_names, image_names))
+metadata = list(zip(labels, class_names, image_names))
 
 # Create a SummaryWriter instance
-# writer = SummaryWriter('runs/segmentation_embeddings')
-# writer.add_embedding(torch.from_numpy(embeddings).float(), metadata=metadata, metadata_header=["Class Label", "Class Names", "Image ID"],  global_step=0)
+writer = SummaryWriter('runs/segmentation_embeddings_th_0.05')
+writer.add_embedding(torch.from_numpy(embeddings).float(), metadata=metadata, metadata_header=["Class Label", "Class Names", "Image ID"],  global_step=0)
 
-# writer.close()
+writer.close()
 
 # Print instructions
 print("Run the following command in your terminal to start TensorBoard:")

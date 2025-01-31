@@ -6,6 +6,5 @@ results/*
 .myvenv/
 runs/*
 results/*
-results_segformer_mit_b2/*
 tiled_dataset/*
 __pycache__/

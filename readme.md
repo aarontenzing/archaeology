@@ -113,7 +113,13 @@ The distances between embedding vectors may reveal additional information, such 
 
 ### 5. Tensorboard embedding spcae (`tensorboard_embeddings.py`)
 
-ToDo
+This script allows you to load embeddings and associated metadata into TensorBoard's Projector, a tool for visualizing high-dimensional data (e.g., embeddings) and performing real-time dimensionality reduction (e.g., PCA, t-SNE).
+
+**Features**
+
+- Visualize embeddings in 2D or 3D space.
+- Perform real-time dimensionality reduction.
+- Optionally display thumbnails (e.g., images) for each embedding point.
 
 ## Useful links
 - Code inspired by [kaggle](https://www.kaggle.com/code/ligtfeather/semantic-segmentation-is-easy-with-pytorch/notebook#Training).
