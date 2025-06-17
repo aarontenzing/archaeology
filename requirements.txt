@@ -135,7 +135,7 @@ pretrainedmodels==0.7.4
 prometheus_client==0.21.1
 prompt_toolkit==3.0.48
 proto-plus==1.25.0
-protobuf==5.28.3
+protobuf==6.31.1s
 psutil==6.1.0
 ptyprocess==0.7.0
 pure_eval==0.2.3
